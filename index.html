@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mines Game</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+        
+        .game-container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            width: 300px;
+            text-align: center;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        
+        .balance {
+            font-weight: bold;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+        }
+        
+        .mines-selector {
+            margin-bottom: 15px;
+        }
+        
+        select {
+            padding: 5px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .mines-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #e0e0e0;
+            border-radius: 5px;
+            font-size: 20px;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .cell.revealed {
+            background-color: #d0d0d0;
+        }
+        
+        .cell.mine {
+            background-color: #ff6b6b;
+            color: white;
+        }
+        
+        .win-display {
+            font-weight: bold;
+            margin-bottom: 10px;
+            height: 20px;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <div class="balance">Balance: <span id="balance">0.00</span></div>
+            <div>Best 5</div>
+        </div>
+        
+        <div class="controls">
+            <div class="mines-selector">
+                <label for="mines-count">Mines: </label>
+                <select id="mines-count">
+                    <!-- Options will be added by JavaScript -->
+                </select>
+            </div>
+            
+            <button id="start-btn">Start Game</button>
+        </div>
+        
+        <div class="mines-grid" id="mines-grid">
+            <!-- Cells will be added by JavaScript -->
+        </div>
+        
+        <div class="win-display" id="win-display"></div>
+        
+        <div class="stats">
+            <div>Mines: <span id="current-mines">1</span></div>
+            <div>WIN: <span id="win-count">0</span></div>
+        </div>
+    </div>
+
+    <script>
+        // Game state
+        let balance = 0.00;
+        let gameActive = false;
+        let currentMines = 1;
+        let revealedCells = 0;
+        let winCount = 0;
+        let minePositions = [];
+        let cashoutMultiplier = 1;
+        
+        // DOM elements
+        const balanceElement = document.getElementById('balance');
+        const minesCountSelect = document.getElementById('mines-count');
+        const startBtn = document.getElementById('start-btn');
+        const minesGrid = document.getElementById('mines-grid');
+        const winDisplay = document.getElementById('win-display');
+        const currentMinesDisplay = document.getElementById('current-mines');
+        const winCountDisplay = document.getElementById('win-count');
+        
+        // Initialize mines select options (1-23 as in your image)
+        for (let i = 1; i <= 23; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.textContent = i;
+            minesCountSelect.appendChild(option);
+        }
+        
+        // Initialize grid
+        function initializeGrid() {
+            minesGrid.innerHTML = '';
+            for (let i = 0; i < 25; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.index = i;
+                cell.textContent = '?';
+                cell.addEventListener('click', () => handleCellClick(i));
+                minesGrid.appendChild(cell);
+            }
+        }
+        
+        initializeGrid();
+        
+        // Start game
+        startBtn.addEventListener('click', () => {
+            if (gameActive) {
+                cashout();
+                return;
+            }
+            
+            currentMines = parseInt(minesCountSelect.value);
+            
+            gameActive = true;
+            revealedCells = 0;
+            cashoutMultiplier = 1;
+            minePositions = [];
+            
+            // Generate random mine positions
+            while (minePositions.length < currentMines) {
+                const randomPos = Math.floor(Math.random() * 25);
+                if (!minePositions.includes(randomPos)) {
+                    minePositions.push(randomPos);
+                }
+            }
+            
+            currentMinesDisplay.textContent = currentMines;
+            winDisplay.textContent = '';
+            
+            // Reset grid
+            initializeGrid();
+            
+            startBtn.textContent = 'Cashout';
+        });
+        
+        // Handle cell click
+        function handleCellClick(index) {
+            if (!gameActive) return;
+            
+            const cell = minesGrid.children[index];
+            
+            if (cell.classList.contains('revealed')) return;
+            
+            cell.classList.add('revealed');
+            
+            if (minePositions.includes(index)) {
+                // Hit a mine
+                cell.textContent = 'X';
+                cell.classList.add('mine');
+                
+                // Reveal all mines
+                minePositions.forEach(pos => {
+                    const mineCell = minesGrid.children[pos];
+                    mineCell.textContent = 'X';
+                    mineCell.classList.add('mine');
+                    mineCell.classList.add('revealed');
+                });
+                
+                gameActive = false;
+                winDisplay.textContent = `You lost!`;
+                startBtn.textContent = 'Start Game';
+            } else {
+                // Safe cell
+                revealedCells++;
+                cashoutMultiplier = calculateMultiplier(revealedCells);
+                winDisplay.textContent = `Multiplier: ${cashoutMultiplier.toFixed(2)}x`;
+                cell.textContent = revealedCells;
+                
+                if (revealedCells === 25 - currentMines) {
+                    // All safe cells revealed
+                    cashout();
+                }
+            }
+        }
+        
+        // Cashout
+        function cashout() {
+            if (!gameActive) return;
+            
+            const winnings = cashoutMultiplier; // In this simple version, we just track the multiplier
+            balance += winnings;
+            updateBalance();
+            
+            winCount++;
+            winCountDisplay.textContent = winCount;
+            
+            gameActive = false;
+            winDisplay.textContent = `You won ${winnings.toFixed(2)}x!`;
+            startBtn.textContent = 'Start Game';
+            
+            // Reveal all mines
+            minePositions.forEach(pos => {
+                const mineCell = minesGrid.children[pos];
+                mineCell.textContent = 'X';
+                mineCell.classList.add('mine');
+                mineCell.classList.add('revealed');
+            });
+        }
+        
+        // Calculate multiplier based on revealed cells
+        function calculateMultiplier(revealed) {
+            const remainingCells = 25 - revealed;
+            const minesLeft = currentMines;
+            const probability = minesLeft / remainingCells;
+            
+            // Simplified calculation
+            return (1 / (1 - probability)) * 0.95; // 0.95 is house edge
+        }
+        
+        // Update balance display
+        function updateBalance() {
+            balanceElement.textContent = balance.toFixed(2);
+        }
+    </script>
+</body>
+</html>
